@@ -19,6 +19,8 @@ to replay the user's selection on the changed model.
 ## TODO
 
 - [ ] keybinding to cycle between stls?
+- [ ] paning camera?
+- [ ] preview picks ie. draw the sphere for IsKeyDown
 - [ ] mouse binding to rotate the light?
 - [ ] checkerboard.png doesn't seem to be be attached though it is somehow necessary?
 - [ ] argument parsing to replay? to review? without opening a window?
