@@ -36,8 +36,8 @@ int main(int argc, char *argv[]) {
     BeginMode3D(camera);
     BeginShaderMode(shader);
     DrawModel(stl_model, Vector3Zero(), 1.0f, (Color){0, 255, 255, 128});
-    DrawPicks();
     EndShaderMode();
+    DrawPicks();
     EndMode3D();
     DrawUI();
     EndDrawing();
@@ -68,56 +68,43 @@ void ProcessInput() {
 
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     Vector2 mouse_pos = GetMousePosition();
-    printf("Mouse Left Button Pressed at Position: x=%.2f, y=%.2f\n",
-           mouse_pos.x, mouse_pos.y);
     Ray ray = GetScreenToWorldRay(mouse_pos, camera);
-    RayCollision hit =
-        GetRayCollisionMesh(ray, stl_model.meshes[0], cameramatrix);
+
+    // if there are multiple meshes, consider only the first one to be hit
+    RayCollision hit;
+    for (int i = 0; i < stl_model.meshCount; i++) {
+      hit = GetRayCollisionMesh(ray, stl_model.meshes[i], stl_model.transform);
+      if (hit.hit)
+        break;
+    }
     if (hit.hit) {
-      printf("Ray hit detected at Point: x=%.2f, y=%.2f, z=%.2f\n", hit.point.x,
-             hit.point.y, hit.point.z);
-      picks2[npicks] = GetMousePosition();
+      picks2[npicks] = mouse_pos;
       picks[npicks++] = hit.point;
-      printf("Pick added. Total picks: %d\n", npicks);
-    } else {
-      printf("No hit detected.\n");
     }
   }
 
-  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
-    if (npicks > 0) {
-      Vector2 mouse_pos = GetMousePosition();
-      printf("Mouse Middle Button Pressed at Position: x=%.2f, y=%.2f\n",
-             mouse_pos.x, mouse_pos.y);
-      Ray ray = GetScreenToWorldRay(mouse_pos, camera);
+  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0) {
+    Vector2 mouse_pos = GetMousePosition();
+    Ray ray = GetScreenToWorldRay(mouse_pos, camera);
 
-      // index with the minimum distance
-      int min_index = 0;
-      float min_distance = RayVector3Distance(ray, picks[0]);
-      printf("Initial minimum distance: %.2f\n", min_distance);
-      for (int i = 1; i < npicks; i++) {
-        float distance = RayVector3Distance(ray, picks[i]);
-        printf("Distance to pick[%d]: %.2f\n", i, distance);
-        if (distance < min_distance) {
-          min_distance = distance;
-          min_index = i;
-          printf("New minimum distance: %.2f at index %d\n", min_distance,
-                 min_index);
-        }
+    // index with the minimum distance
+    int min_index = 0;
+    float min_distance = RayVector3Distance(ray, picks[0]);
+    for (int i = 1; i < npicks; i++) {
+      float distance = RayVector3Distance(ray, picks[i]);
+      if (distance < min_distance) {
+        min_distance = distance;
+        min_index = i;
       }
-
-      DeletePick(min_index);
-      printf("Pick at index %d deleted. Remaining picks: %d\n", min_index,
-             npicks - 1);
-    } else {
-      printf("Mouse Middle Button Pressed but npicks <= 0\n");
     }
+
+    DeletePick(min_index);
   }
 }
 
 void DrawPicks() {
   for (int i = 0; i < npicks; i++) {
-    DrawSphere(picks[i], 1.f, GREEN);
+    DrawSphere(picks[i], 1.f, RED);
   }
 }
 
