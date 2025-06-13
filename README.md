@@ -20,6 +20,5 @@ to replay the user's selection on the changed model.
 
 - [ ] mouse binding to rotate the light?
 - [ ] checkerboard.png doesn't seem to be be attached though it is somehow necessary?
-- [ ] test DeletePick()
 - [ ] argument parsing to replay? to review? without opening a window?
 - [ ] DrawUI() y spacing off

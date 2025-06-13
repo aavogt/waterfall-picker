@@ -109,6 +109,13 @@ void ProcessInput() {
 
     DeletePick(min_index);
   }
+
+  if (IsKeyPressed(KEY_PERIOD)) {
+    LoadCameraIDWithDirection(true);
+  }
+  if (IsKeyPressed(KEY_COMMA)) {
+    LoadCameraIDWithDirection(false);
+  }
 }
 
 void DrawPicks() {
@@ -119,9 +126,13 @@ void DrawPicks() {
 
 void DrawUI(void) {
   DrawText("Controls:", 10, 10, 20, BLACK);
+  DrawText(", (KEY_COMMA): previous camera", 10, 40, 16, DARKGRAY);
+  DrawText(". (KEY_PERIOD): next camera", 10, 60, 16, DARKGRAY);
   DrawText("Left Click: Add point", 10, 75, 16, DARKGRAY);
   DrawText("Middle Click: Delete closest point", 10, 75 + 20, 16, DARKGRAY);
   DrawText("Right drag: Rotate camera", 10, 75 + 40, 16, DARKGRAY);
   DrawText(TextFormat("npicks: %d", npicks), 10, 165, 16, BLACK);
   DrawText(TextFormat("STL ID: %d", selected_stl_id), 10, 185, 16, BLACK);
+  DrawText(camdirty ? "CAM ID: ..." : TextFormat("CAM ID: %d", cameraid), 10,
+           205, 16, BLACK);
 }

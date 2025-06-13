@@ -16,13 +16,14 @@
 static sqlite3 *db = NULL;
 static Camera3D camera = {0};
 static Matrix cameramatrix = {0};
+static int cameraid = 1;
 static int selected_stl_id = 0;
 static Model stl_model = {0};
 static int editing_mode = 0;
 
 static int picksid[MAX_PTS];
 static int picks2cam[MAX_PTS];
-static bool camdirty = true;
+static bool camdirty = false;
 static Vector2 picks2[MAX_PTS];
 static Vector3 picks[MAX_PTS];
 static int npicks = 0;

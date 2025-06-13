@@ -117,18 +117,18 @@ bool LoadPicksFromDB(int stl_id) {
   return true;
 }
 
-bool LoadCameraFromDB(int stl_id) {
+bool LoadCameraID(int cam_id) {
   sqlite3_stmt *stmt;
   const char *sql =
       "SELECT posx, posy, posz, tx, ty, tz, upx, upy, upz, fovy, proj "
-      "FROM cams WHERE stl = ?;";
+      "FROM cams WHERE rowid = ?;";
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     printf("SQL error: %s\n", sqlite3_errmsg(db));
     return false;
   }
 
-  sqlite3_bind_int(stmt, 1, stl_id);
+  sqlite3_bind_int(stmt, 1, cam_id);
 
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     // Assign values from the database row to the camera structure
@@ -159,10 +159,74 @@ bool LoadCameraFromDB(int stl_id) {
     sqlite3_finalize(stmt);
     return true;
   } else {
-    printf("No camera found for stl_id: %d\n", stl_id);
+    printf("No camera found with rowid: %d\n", cam_id);
     sqlite3_finalize(stmt);
     return false;
   }
+}
+
+bool LoadCameraIDWithDirection(bool asc) {
+  sqlite3_stmt *stmt;
+  const char *sql =
+      asc ? "SELECT rowid FROM cams WHERE rowid > ? ORDER BY rowid ASC LIMIT 1;"
+          : "SELECT rowid FROM cams WHERE rowid < ? ORDER BY rowid DESC LIMIT "
+            "1;";
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, cameraid);
+
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    cameraid = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+    return LoadCameraID(cameraid);
+  }
+
+  sqlite3_finalize(stmt);
+
+  // Wrap to the first or last camera if no next/previous camera is found
+  sql = asc ? "SELECT rowid FROM cams ORDER BY rowid ASC LIMIT 1;"
+            : "SELECT rowid FROM cams ORDER BY rowid DESC LIMIT 1;";
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    cameraid = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+    return LoadCameraID(cameraid);
+  }
+
+  sqlite3_finalize(stmt);
+  printf("No cameras found in the database.\n");
+  return false;
+}
+
+bool LoadCameraFromDB(int stl_id) {
+  sqlite3_stmt *stmt;
+  const char *sql = "SELECT rowid FROM cams WHERE stl = ?;";
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, stl_id);
+
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    int cam_id = sqlite3_column_int(stmt, 0); // Retrieve the camera ID
+    sqlite3_finalize(stmt);
+    return LoadCameraID(cam_id); // Use LoadCameraID to load the camera data
+  }
+
+  sqlite3_finalize(stmt);
+  printf("No camera found for stl_id: %d\n", stl_id);
+  return false;
 }
 
 bool InitializeLoadDB() {
