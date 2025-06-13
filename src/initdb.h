@@ -233,3 +233,96 @@ bool DeletePick(int i) {
   sqlite3_finalize(stmt);
   return true;
 }
+
+bool InsertPick(Vector2 mouse_pos, Vector3 world_pos, int cam_id) {
+  // Ensure we don't exceed the maximum number of picks
+  if (npicks >= MAX_PTS) {
+    printf("Error: Exceeded maximum number of picks (%d).\n", MAX_PTS);
+    return false;
+  }
+
+  // Prepare the SQL statement for insertion
+  const char *sql =
+      "INSERT INTO picks (cam, mx, my, x, y, z) VALUES (?, ?, ?, ?, ?, ?);";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  // Bind values to the SQL statement
+  sqlite3_bind_int(stmt, 1, cam_id);         // cam
+  sqlite3_bind_double(stmt, 2, mouse_pos.x); // mx
+  sqlite3_bind_double(stmt, 3, mouse_pos.y); // my
+  sqlite3_bind_double(stmt, 4, world_pos.x); // x
+  sqlite3_bind_double(stmt, 5, world_pos.y); // y
+  sqlite3_bind_double(stmt, 6, world_pos.z); // z
+
+  // Execute the SQL statement
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    printf("Failed to insert pick: %s\n", sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return false;
+  }
+
+  // Get the rowid of the inserted pick
+  int rowid = (int)sqlite3_last_insert_rowid(db);
+
+  // Update the static arrays
+  picks2[npicks] = mouse_pos;
+  picks[npicks] = world_pos;
+  picks2cam[npicks] = cam_id;
+  picksid[npicks] = rowid;
+  npicks++; // Increment the number of picks
+
+  // Finalize the statement
+  sqlite3_finalize(stmt);
+
+  printf("Pick inserted successfully with rowid = %d.\n", rowid);
+  return true;
+}
+
+bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
+  // Prepare the SQL statement for insertion
+  const char *sql = "INSERT INTO cams (posx, posy, posz, tx, ty, tz, upx, upy, "
+                    "upz, fovy, proj, stl) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  // Bind values to the SQL statement
+  sqlite3_bind_double(stmt, 1, camera.position.x); // posx
+  sqlite3_bind_double(stmt, 2, camera.position.y); // posy
+  sqlite3_bind_double(stmt, 3, camera.position.z); // posz
+  sqlite3_bind_double(stmt, 4, camera.target.x);   // tx
+  sqlite3_bind_double(stmt, 5, camera.target.y);   // ty
+  sqlite3_bind_double(stmt, 6, camera.target.z);   // tz
+  sqlite3_bind_double(stmt, 7, camera.up.x);       // upx
+  sqlite3_bind_double(stmt, 8, camera.up.y);       // upy
+  sqlite3_bind_double(stmt, 9, camera.up.z);       // upz
+  sqlite3_bind_double(stmt, 10, camera.fovy);      // fovy
+  sqlite3_bind_int(stmt, 11, camera.projection);   // proj
+  sqlite3_bind_int(stmt, 12, stl_id);              // stl
+
+  // Execute the SQL statement
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    printf("Failed to insert camera: %s\n", sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return false;
+  }
+
+  *cam_id = (int)sqlite3_last_insert_rowid(db);
+
+  // Finalize the statement
+  sqlite3_finalize(stmt);
+
+  printf("Camera inserted successfully for stl_id = %d.\n", stl_id);
+  return true;
+}

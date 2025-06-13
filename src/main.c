@@ -64,6 +64,7 @@ void ProcessInput() {
   if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
     UpdateCamera(&camera, CAMERA_THIRD_PERSON);
     cameramatrix = GetCameraMatrix(camera);
+    camdirty = true;
   }
 
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -78,8 +79,16 @@ void ProcessInput() {
         break;
     }
     if (hit.hit) {
-      picks2[npicks] = mouse_pos;
-      picks[npicks++] = hit.point;
+      int cam_id;
+      if (camdirty) {
+        InsertCam(camera, selected_stl_id, &cam_id);
+        printf("dirty cam, camid %d\n", cam_id);
+        camdirty = false;
+      } else {
+        cam_id = picks2cam[npicks - 1];
+      }
+      printf("clean cam, camid %d\n", cam_id);
+      InsertPick(mouse_pos, hit.point, cam_id);
     }
   }
 

@@ -22,6 +22,7 @@ static int editing_mode = 0;
 
 static int picksid[MAX_PTS];
 static int picks2cam[MAX_PTS];
+static bool camdirty = true;
 static Vector2 picks2[MAX_PTS];
 static Vector3 picks[MAX_PTS];
 static int npicks = 0;
