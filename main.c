@@ -1,82 +1,54 @@
 #include "raylib.h"
 #include "raymath.h"
+
 #include "sqlite3.h"
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-#define MAX_TRIANGLES 100000
-#define MAX_POLYLINE_POINTS 1000
-#define MAX_POLYLINES 100
-
-typedef struct {
-  Vector3 v1, v2, v3;
-  Vector3 normal;
-} Triangle;
-
-typedef struct {
-  Vector2 points[MAX_POLYLINE_POINTS];
-  int count;
-  int drag_id;
-  bool active;
-} Polyline2D;
-
-typedef struct {
-  Vector3 points[MAX_POLYLINE_POINTS];
-  Vector3 normals[MAX_POLYLINE_POINTS];
-  int count;
-  int mouse_id;
-} Polyline3D;
-
-typedef struct {
-  Triangle triangles[MAX_TRIANGLES];
-  int triangle_count;
-  Model model;
-  bool loaded;
-} STLModel;
-
-typedef struct {
-  Vector3 position;
-  Vector3 target;
-  Vector3 up;
-  float fovy;
-  int projection;
-  bool is_default;
-} CameraData;
+#define MAX_TRIANGLES 80000
+#define MAX_PTS 1000
 
 // Global variables
 static sqlite3 *db = NULL;
-static STLModel stl_model = {0};
-static CameraData cam_data = {0};
-static Polyline2D polylines_2d[MAX_POLYLINES] = {0};
-static Polyline3D polylines_3d[MAX_POLYLINES] = {0};
-static int polyline_count = 0;
-static int current_polyline = -1;
-static bool editing_mode = false;
-static int selected_stl_id = 1;
+static Camera3D camera = {0};
+static Matrix cameramatrix = {0};
+static int selected_stl_id = 0;
+static Model stl_model = {0};
+static int editing_mode = 0;
+
+static int picksid[MAX_PTS];
+static int picks2cam[MAX_PTS];
+static Vector2 picks2[MAX_PTS];
+static Vector3 picks[MAX_PTS];
+static int npicks = 0;
+static Shader shader;
 
 // Function prototypes
 bool InitDatabase(const char *db_path);
 bool LoadSTLFromDB(int stl_id);
 bool LoadCameraFromDB(int stl_id);
-bool LoadPolylinesFromDB(int stl_id);
+bool LoadPicksFromDB(int stl_id);
 bool SavePolylineToScreenSpace(int drag_id);
 bool SavePolylineTo3D(int drag_id);
-void UpdatePolyline3DFromScreenSpace(int polyline_idx);
-Vector3 ParseSTLTriangle(const char *line, int vertex_num);
-void ProcessInput(Camera3D *camera);
-void DrawPolylines2D(void);
-void DrawPolylines3D(Camera3D camera);
+void ProcessInput();
+void DrawPicks();
 void DrawUI(void);
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    printf("Usage: %s <database_path> [stl_id]\n", argv[0]);
-    return 1;
-  }
+  // if (argc < 2) {
+  //   printf("Usage: %s <database_path> [stl_id]\n", argv[0]);
+  //   return 1;
+  // }
+  const char *db_path = "/tmp/db.stl"; // Default database path
+  selected_stl_id = 1;
 
-  const char *db_path = argv[1];
+  if (argc > 1) {
+    const char *db_path = argv[1];
+  }
   if (argc > 2) {
     selected_stl_id = atoi(argv[2]);
   }
@@ -84,8 +56,8 @@ int main(int argc, char *argv[]) {
   // Initialize Raylib
   const int screenWidth = 1200;
   const int screenHeight = 800;
-  InitWindow(screenWidth, screenHeight, "STL Viewer with Polyline Editor");
-  SetTargetFPS(60);
+  InitWindow(screenWidth, screenHeight, "STL Viewer with Point Editor");
+  SetTargetFPS(30);
 
   // Initialize database
   if (!InitDatabase(db_path)) {
@@ -102,53 +74,64 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Load picks
+  if (!LoadPicksFromDB(selected_stl_id)) {
+    printf("Failed to load picks\n");
+    sqlite3_close(db);
+    CloseWindow();
+    return 1;
+  }
+
   // Load camera settings
   LoadCameraFromDB(selected_stl_id);
 
-  // Load existing polylines
-  LoadPolylinesFromDB(selected_stl_id);
+  shader = LoadShader("vs.glsl", "fs.glsl");
+  if (shader.id == 0) {
+    printf("Failed to load shader\n");
+    return 1;
+  }
+  Vector3 ambientColor = {0.5f, 0.5f, 0.4f}; // Example ambient color
+  int shaderAmbientLoc = GetShaderLocation(shader, "ambientColor");
+  SetShaderValue(shader, shaderAmbientLoc, &ambientColor, SHADER_UNIFORM_VEC3);
 
-  // Initialize 3D camera
-  Camera3D camera = {0};
-  camera.position = cam_data.position;
-  camera.target = cam_data.target;
-  camera.up = cam_data.up;
-  camera.fovy = cam_data.fovy;
-  camera.projection = cam_data.projection;
+  Vector3 lightPosition = {0.0, -10.0, 10.0};
+  int shaderLightPositionLoc = GetShaderLocation(shader, "lightPosition");
+  SetShaderValue(shader, shaderLightPositionLoc, &lightPosition,
+                 SHADER_UNIFORM_VEC3);
+
+  // Load texture and assign it to the model
+  // convert -size 800x800 pattern:checkerboard -colors 2 checkerboard.png
+  Texture2D checkerboard = LoadTexture("checkerboard.png");
+  if (checkerboard.id == 0) {
+    printf("Failed to load texture\n");
+    return 1;
+  }
+  stl_model.materials =
+      &(Material){.shader = shader,
+                  .params = {1.f, 1.f, 1.f, 1.f},
+                  .maps = &(MaterialMap){
+                      .texture = checkerboard, .color = GRAY, .value = 50.f}};
 
   // Main game loop
   while (!WindowShouldClose()) {
-    ProcessInput(&camera);
+    ProcessInput();
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
-
     BeginMode3D(camera);
-
-    // Draw STL model
-    if (stl_model.loaded) {
-      DrawModel(stl_model.model, Vector3Zero(), 1.0f, GRAY);
-    }
-
-    // Draw 3D polylines
-    DrawPolylines3D(camera);
-
+    BeginShaderMode(shader);
+    DrawModel(stl_model, Vector3Zero(), 1.0f, (Color){0, 255, 255, 128});
+    DrawPicks();
+    EndShaderMode();
     EndMode3D();
-
-    // Draw 2D polylines overlay
-    DrawPolylines2D();
-
-    // Draw UI
     DrawUI();
-
     EndDrawing();
   }
 
   // Cleanup
-  if (stl_model.loaded) {
-    UnloadModel(stl_model.model);
-  }
+  UnloadModel(stl_model);
   sqlite3_close(db);
+  UnloadTexture(checkerboard);
   CloseWindow();
 
   return 0;
@@ -218,268 +201,210 @@ bool LoadSTLFromDB(int stl_id) {
       }
 
       UploadMesh(&mesh, false);
-      stl_model.model = LoadModelFromMesh(mesh);
-      stl_model.loaded = true;
-      stl_model.triangle_count = triangle_count;
+      stl_model = LoadModelFromMesh(mesh);
+      sqlite3_finalize(stmt);
+      return true;
     }
+  }
+  sqlite3_finalize(stmt);
+  return false;
+}
+
+bool LoadPicksFromDB(int stl_id) {
+  sqlite3_stmt *stmt;
+  const char *sql = "SELECT picks.cam, picks.mx, picks.my, picks.x, picks.y, "
+                    "picks.z, picks.rowid "
+                    "FROM picks "
+                    "INNER JOIN cams ON picks.cam = cams.rowid "
+                    "WHERE cams.stl = ?;";
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, stl_id);
+  npicks = 0; // Reset the number of picks
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (npicks >= MAX_PTS) {
+      printf("Error: Exceeded maximum number of picks (%d).\n", MAX_PTS);
+      break;
+    }
+
+    // Assign values from the database row to the static variables
+    picks2cam[npicks] = sqlite3_column_int(stmt, 0); // cam
+
+    picks2[npicks] = (Vector2){
+        .x = (float)sqlite3_column_double(stmt, 1), // mx
+        .y = (float)sqlite3_column_double(stmt, 2)  // my
+    };
+
+    picks[npicks] = (Vector3){
+        .x = (float)sqlite3_column_double(stmt, 3), // x
+        .y = (float)sqlite3_column_double(stmt, 4), // y
+        .z = (float)sqlite3_column_double(stmt, 5)  // z
+    };
+
+    picksid[npicks] = sqlite3_column_int(stmt, 6); // rowid
+
+    npicks++; // Increment the number of picks
   }
 
   sqlite3_finalize(stmt);
-  return stl_model.loaded;
+  return true;
 }
 
 bool LoadCameraFromDB(int stl_id) {
   sqlite3_stmt *stmt;
-  const char *sql = "SELECT posx, posy, posz, tx, ty, tz, upx, upy, upz, fovy, "
-                    "proj FROM cams WHERE stl = ? ORDER BY isdef DESC LIMIT 1;";
-
+  const char *sql =
+      "SELECT posx, posy, posz, tx, ty, tz, upx, upy, upz, fovy, proj "
+      "FROM cams WHERE stl = ?;";
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK)
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
     return false;
+  }
 
   sqlite3_bind_int(stmt, 1, stl_id);
 
   if (sqlite3_step(stmt) == SQLITE_ROW) {
-    cam_data.position = (Vector3){sqlite3_column_double(stmt, 0),
-                                  sqlite3_column_double(stmt, 1),
-                                  sqlite3_column_double(stmt, 2)};
-    cam_data.target = (Vector3){sqlite3_column_double(stmt, 3),
-                                sqlite3_column_double(stmt, 4),
-                                sqlite3_column_double(stmt, 5)};
-    cam_data.up = (Vector3){sqlite3_column_double(stmt, 6),
-                            sqlite3_column_double(stmt, 7),
-                            sqlite3_column_double(stmt, 8)};
-    cam_data.fovy = sqlite3_column_double(stmt, 9);
-    cam_data.projection = sqlite3_column_int(stmt, 10);
+    // Assign values from the database row to the camera structure
+    camera = (Camera3D){
+        .position =
+            {
+                .x = (float)sqlite3_column_double(stmt, 0), // posx
+                .y = (float)sqlite3_column_double(stmt, 1), // posy
+                .z = (float)sqlite3_column_double(stmt, 2)  // posz
+            },
+        .target =
+            {
+                .x = (float)sqlite3_column_double(stmt, 3), // tx
+                .y = (float)sqlite3_column_double(stmt, 4), // ty
+                .z = (float)sqlite3_column_double(stmt, 5)  // tz
+            },
+        .up =
+            {
+                .x = (float)sqlite3_column_double(stmt, 6), // upx
+                .y = (float)sqlite3_column_double(stmt, 7), // upy
+                .z = (float)sqlite3_column_double(stmt, 8)  // upz
+            },
+        .fovy = (float)sqlite3_column_double(stmt, 9), // fovy
+        .projection = sqlite3_column_int(stmt, 10)     // proj
+    };
+    cameramatrix = GetCameraMatrix(camera);
+
+    sqlite3_finalize(stmt);
+    return true;
   } else {
-    // Default camera settings
-    cam_data.position = (Vector3){10.0f, 10.0f, 10.0f};
-    cam_data.target = (Vector3){0.0f, 0.0f, 0.0f};
-    cam_data.up = (Vector3){0.0f, 1.0f, 0.0f};
-    cam_data.fovy = 45.0f;
-    cam_data.projection = CAMERA_PERSPECTIVE;
-  }
-
-  sqlite3_finalize(stmt);
-  return true;
-}
-
-bool LoadPolylinesFromDB(int stl_id) {
-  sqlite3_stmt *stmt;
-  const char *sql = "SELECT d.rowid, d.desc FROM drags d JOIN cams c ON d.cam "
-                    "= c.rowid WHERE c.stl = ?;";
-
-  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-  if (rc != SQLITE_OK)
+    printf("No camera found for stl_id: %d\n", stl_id);
+    sqlite3_finalize(stmt);
     return false;
+  }
+}
 
-  sqlite3_bind_int(stmt, 1, stl_id);
-  polyline_count = 0;
+// Plucker coordinate
+float RayVector3Distance(Ray r, Vector3 x) {
+  Vector3 originToPoint = Vector3Subtract(x, r.position);
+  return Vector3Length(Vector3CrossProduct(r.direction, originToPoint));
+}
 
-  while (sqlite3_step(stmt) == SQLITE_ROW && polyline_count < MAX_POLYLINES) {
-    int drag_id = sqlite3_column_int(stmt, 0);
+bool DeletePick(int i) {
+  // delete it from the arrays
+  int delid = picksid[i];
+  picks[i] = picks[npicks - 1];
+  picks2cam[i] = picks2cam[npicks - 1];
+  picksid[i] = picks2cam[npicks - 1];
+  picks2[i] = picks2[--npicks];
 
-    // Load 2D points
-    sqlite3_stmt *pts_stmt;
-    const char *pts_sql = "SELECT x, y FROM two WHERE drag = ? ORDER BY rowid;";
+  // delete it from the database
+  const char *sql = "DELETE FROM picks WHERE rowid = ?;";
+  sqlite3_stmt *stmt;
 
-    if (sqlite3_prepare_v2(db, pts_sql, -1, &pts_stmt, NULL) == SQLITE_OK) {
-      sqlite3_bind_int(pts_stmt, 1, drag_id);
-
-      int point_count = 0;
-      while (sqlite3_step(pts_stmt) == SQLITE_ROW &&
-             point_count < MAX_POLYLINE_POINTS) {
-        polylines_2d[polyline_count].points[point_count] =
-            (Vector2){sqlite3_column_double(pts_stmt, 0),
-                      sqlite3_column_double(pts_stmt, 1)};
-        point_count++;
-      }
-
-      polylines_2d[polyline_count].count = point_count;
-      polylines_2d[polyline_count].drag_id = drag_id;
-      polylines_2d[polyline_count].active = true;
-
-      sqlite3_finalize(pts_stmt);
-    }
-
-    // Load 3D points
-    sqlite3_stmt *pts3d_stmt;
-    const char *pts3d_sql =
-        "SELECT x, y, z, nx, ny, nz FROM three WHERE mouse = ? ORDER BY rowid;";
-
-    if (sqlite3_prepare_v2(db, pts3d_sql, -1, &pts3d_stmt, NULL) == SQLITE_OK) {
-      sqlite3_bind_int(pts3d_stmt, 1, drag_id);
-
-      int point_count = 0;
-      while (sqlite3_step(pts3d_stmt) == SQLITE_ROW &&
-             point_count < MAX_POLYLINE_POINTS) {
-        polylines_3d[polyline_count].points[point_count] =
-            (Vector3){sqlite3_column_double(pts3d_stmt, 0),
-                      sqlite3_column_double(pts3d_stmt, 1),
-                      sqlite3_column_double(pts3d_stmt, 2)};
-        polylines_3d[polyline_count].normals[point_count] =
-            (Vector3){sqlite3_column_double(pts3d_stmt, 3),
-                      sqlite3_column_double(pts3d_stmt, 4),
-                      sqlite3_column_double(pts3d_stmt, 5)};
-        point_count++;
-      }
-
-      polylines_3d[polyline_count].count = point_count;
-      polylines_3d[polyline_count].mouse_id = drag_id;
-
-      sqlite3_finalize(pts3d_stmt);
-    }
-
-    polyline_count++;
+  // Prepare the SQL statement
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
   }
 
+  // Bind the rowid value to the SQL statement
+  sqlite3_bind_int(stmt, 1, i);
+
+  // Execute the SQL statement
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    printf("Failed to delete row: %s\n", sqlite3_errmsg(db));
+  } else {
+    printf("Row with rowid = %d deleted successfully.\n", i);
+  }
+
+  // Finalize the statement
   sqlite3_finalize(stmt);
   return true;
 }
 
-void ProcessInput(Camera3D *camera) {
-  // Camera controls
+void ProcessInput() {
   if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-    UpdateCamera(camera, CAMERA_FREE);
+    UpdateCamera(&camera, CAMERA_THIRD_PERSON);
+    cameramatrix = GetCameraMatrix(camera);
   }
 
-  // Toggle editing mode
-  if (IsKeyPressed(KEY_E)) {
-    editing_mode = !editing_mode;
-    if (editing_mode && current_polyline == -1) {
-      // Start new polyline
-      if (polyline_count < MAX_POLYLINES) {
-        current_polyline = polyline_count;
-        polylines_2d[current_polyline].count = 0;
-        polylines_2d[current_polyline].active = true;
-        polylines_2d[current_polyline].drag_id = -1; // New polyline
-      }
-    }
-  }
-
-  // Add point to current polyline
-  if (editing_mode && current_polyline >= 0 &&
-      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     Vector2 mouse_pos = GetMousePosition();
-    if (polylines_2d[current_polyline].count < MAX_POLYLINE_POINTS) {
-      polylines_2d[current_polyline]
-          .points[polylines_2d[current_polyline].count] = mouse_pos;
-      polylines_2d[current_polyline].count++;
-
-      // Update 3D representation
-      UpdatePolyline3DFromScreenSpace(current_polyline);
+    printf("Mouse Left Button Pressed at Position: x=%.2f, y=%.2f\n",
+           mouse_pos.x, mouse_pos.y);
+    Ray ray = GetScreenToWorldRay(mouse_pos, camera);
+    RayCollision hit =
+        GetRayCollisionMesh(ray, stl_model.meshes[0], cameramatrix);
+    if (hit.hit) {
+      printf("Ray hit detected at Point: x=%.2f, y=%.2f, z=%.2f\n", hit.point.x,
+             hit.point.y, hit.point.z);
+      picks2[npicks] = GetMousePosition();
+      picks[npicks++] = hit.point;
+      printf("Pick added. Total picks: %d\n", npicks);
+    } else {
+      printf("No hit detected.\n");
     }
   }
 
-  // Finish current polyline
-  if (editing_mode && current_polyline >= 0 && IsKeyPressed(KEY_ENTER)) {
-    if (polylines_2d[current_polyline].count > 1) {
-      // Save to database
-      SavePolylineToScreenSpace(current_polyline);
-      SavePolylineTo3D(current_polyline);
+  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
+    Vector2 mouse_pos = GetMousePosition();
+    printf("Mouse Middle Button Pressed at Position: x=%.2f, y=%.2f\n",
+           mouse_pos.x, mouse_pos.y);
+    Ray ray = GetScreenToWorldRay(mouse_pos, camera);
 
-      if (current_polyline == polyline_count) {
-        polyline_count++;
+    // index with the minimum distance
+    int min_index = 0;
+    float min_distance = RayVector3Distance(ray, picks[0]);
+    printf("Initial minimum distance: %.2f\n", min_distance);
+    for (int i = 1; i < npicks; i++) {
+      float distance = RayVector3Distance(ray, picks[i]);
+      printf("Distance to pick[%d]: %.2f\n", i, distance);
+      if (distance < min_distance) {
+        min_distance = distance;
+        min_index = i;
+        printf("New minimum distance: %.2f at index %d\n", min_distance,
+               min_index);
       }
     }
-    current_polyline = -1;
-    editing_mode = false;
-  }
 
-  // Cancel current polyline
-  if (editing_mode && IsKeyPressed(KEY_ESCAPE)) {
-    if (current_polyline == polyline_count) {
-      polylines_2d[current_polyline].count = 0;
-      polylines_2d[current_polyline].active = false;
-    }
-    current_polyline = -1;
-    editing_mode = false;
+    DeletePick(min_index);
+    printf("Pick at index %d deleted. Remaining picks: %d\n", min_index,
+           npicks - 1);
   }
 }
 
-void UpdatePolyline3DFromScreenSpace(int polyline_idx) {
-  Camera3D temp_camera = {.position = cam_data.position,
-                          .target = cam_data.target,
-                          .up = cam_data.up,
-                          .fovy = cam_data.fovy,
-                          .projection = cam_data.projection};
-
-  for (int i = 0; i < polylines_2d[polyline_idx].count; i++) {
-    Vector2 screen_pos = polylines_2d[polyline_idx].points[i];
-    Ray ray = GetScreenToWorldRay(screen_pos, temp_camera);
-
-    // Simple projection to Z=0 plane for demonstration
-    // In a real application, you'd want to intersect with the STL model
-    float t = -ray.position.z / ray.direction.z;
-    Vector3 world_pos =
-        Vector3Add(ray.position, Vector3Scale(ray.direction, t));
-
-    polylines_3d[polyline_idx].points[i] = world_pos;
-    polylines_3d[polyline_idx].normals[i] =
-        (Vector3){0, 0, 1}; // Default normal
-  }
-  polylines_3d[polyline_idx].count = polylines_2d[polyline_idx].count;
-}
-
-bool SavePolylineToScreenSpace(int polyline_idx) {
-  // Implementation for saving 2D polyline to database
-  // This would insert into the 'two' table
-  return true;
-}
-
-bool SavePolylineTo3D(int polyline_idx) {
-  // Implementation for saving 3D polyline to database
-  // This would insert into the 'three' table
-  return true;
-}
-
-void DrawPolylines2D(void) {
-  for (int i = 0; i < polyline_count; i++) {
-    if (!polylines_2d[i].active)
-      continue;
-
-    Color color = (i == current_polyline) ? RED : BLUE;
-
-    for (int j = 1; j < polylines_2d[i].count; j++) {
-      DrawLineV(polylines_2d[i].points[j - 1], polylines_2d[i].points[j],
-                color);
-    }
-
-    // Draw points
-    for (int j = 0; j < polylines_2d[i].count; j++) {
-      DrawCircleV(polylines_2d[i].points[j], 3, color);
-    }
-  }
-}
-
-void DrawPolylines3D(Camera3D camera) {
-  for (int i = 0; i < polyline_count; i++) {
-    Color color = (i == current_polyline) ? RED : GREEN;
-
-    for (int j = 1; j < polylines_3d[i].count; j++) {
-      DrawLine3D(polylines_3d[i].points[j - 1], polylines_3d[i].points[j],
-                 color);
-    }
-
-    // Draw points
-    for (int j = 0; j < polylines_3d[i].count; j++) {
-      DrawSphere(polylines_3d[i].points[j], 0.1f, color);
-    }
+void DrawPicks() {
+  for (int i = 0; i < npicks; i++) {
+    DrawSphere(picks[i], 1.f, GREEN);
   }
 }
 
 void DrawUI(void) {
   DrawText("Controls:", 10, 10, 20, BLACK);
-  DrawText("Right Mouse: Rotate camera", 10, 35, 16, DARKGRAY);
-  DrawText("E: Toggle edit mode", 10, 55, 16, DARKGRAY);
-  DrawText("Left Click: Add point (edit mode)", 10, 75, 16, DARKGRAY);
-  DrawText("Enter: Finish polyline", 10, 95, 16, DARKGRAY);
-  DrawText("Escape: Cancel polyline", 10, 115, 16, DARKGRAY);
-
-  if (editing_mode) {
-    DrawText("EDIT MODE", 10, 140, 20, RED);
-  }
-
-  DrawText(TextFormat("Polylines: %d", polyline_count), 10, 165, 16, BLACK);
+  DrawText("Left Click: Add point", 10, 75, 16, DARKGRAY);
+  DrawText("Middle Click: Delete closest point", 10, 75 + 20, 16, DARKGRAY);
+  DrawText("Right drag: Rotate camera", 10, 75 + 40, 16, DARKGRAY);
+  DrawText(TextFormat("npicks: %d", npicks), 10, 165, 16, BLACK);
   DrawText(TextFormat("STL ID: %d", selected_stl_id), 10, 185, 16, BLACK);
 }
