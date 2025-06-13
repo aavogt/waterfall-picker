@@ -7,7 +7,7 @@ void SetLightPosition(Vector3 lightPosition) {
 }
 
 bool InitializeShader() {
-  shader = LoadShader("vs.glsl", "fs.glsl");
+  shader = LoadShader("src/vs.glsl", "src/fs.glsl");
   if (shader.id == 0) {
     printf("Failed to load shader\n");
     return 1;
