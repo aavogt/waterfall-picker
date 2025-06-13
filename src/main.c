@@ -85,29 +85,33 @@ void ProcessInput() {
   }
 
   if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
-    Vector2 mouse_pos = GetMousePosition();
-    printf("Mouse Middle Button Pressed at Position: x=%.2f, y=%.2f\n",
-           mouse_pos.x, mouse_pos.y);
-    Ray ray = GetScreenToWorldRay(mouse_pos, camera);
+    if (npicks > 0) {
+      Vector2 mouse_pos = GetMousePosition();
+      printf("Mouse Middle Button Pressed at Position: x=%.2f, y=%.2f\n",
+             mouse_pos.x, mouse_pos.y);
+      Ray ray = GetScreenToWorldRay(mouse_pos, camera);
 
-    // index with the minimum distance
-    int min_index = 0;
-    float min_distance = RayVector3Distance(ray, picks[0]);
-    printf("Initial minimum distance: %.2f\n", min_distance);
-    for (int i = 1; i < npicks; i++) {
-      float distance = RayVector3Distance(ray, picks[i]);
-      printf("Distance to pick[%d]: %.2f\n", i, distance);
-      if (distance < min_distance) {
-        min_distance = distance;
-        min_index = i;
-        printf("New minimum distance: %.2f at index %d\n", min_distance,
-               min_index);
+      // index with the minimum distance
+      int min_index = 0;
+      float min_distance = RayVector3Distance(ray, picks[0]);
+      printf("Initial minimum distance: %.2f\n", min_distance);
+      for (int i = 1; i < npicks; i++) {
+        float distance = RayVector3Distance(ray, picks[i]);
+        printf("Distance to pick[%d]: %.2f\n", i, distance);
+        if (distance < min_distance) {
+          min_distance = distance;
+          min_index = i;
+          printf("New minimum distance: %.2f at index %d\n", min_distance,
+                 min_index);
+        }
       }
-    }
 
-    DeletePick(min_index);
-    printf("Pick at index %d deleted. Remaining picks: %d\n", min_index,
-           npicks - 1);
+      DeletePick(min_index);
+      printf("Pick at index %d deleted. Remaining picks: %d\n", min_index,
+             npicks - 1);
+    } else {
+      printf("Mouse Middle Button Pressed but npicks <= 0\n");
+    }
   }
 }
 
