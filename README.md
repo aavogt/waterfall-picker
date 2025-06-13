@@ -2,7 +2,7 @@
 
 This is a c raylib program for the following database:
 
-![schema](schema.png}
+![schema](schema.png)
 
 [waterfall cad](https://github.com/joe-warren/opencascade-hs#readme) has no
 feature to pick points on a model. A separate quasiquoter will generate the
