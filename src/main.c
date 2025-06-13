@@ -78,28 +78,16 @@ void ProcessInput() {
         break;
     }
     if (hit.hit) {
-      int cam_id;
       if (camdirty) {
-        InsertCam(camera, selected_stl_id, &cam_id);
-        printf("dirty cam, camid %d\n", cam_id);
+        InsertCam(camera, selected_stl_id, &cameraid);
+        printf("dirty cam, camid %d\n", cameraid);
         camdirty = false;
-      } else {
-        // this can be out of bounds, if it would be then
-        // camid should be cameraid?
-        if (npicks < 1) {
-          cam_id = cameraid;
-
-        } else {
-          cam_id = picks2cam[npicks - 1];
-        }
       }
-      printf("clean cam, camid %d\n", cam_id);
-      InsertPick(mouse_pos, hit.point, cam_id);
+      InsertPick(mouse_pos, hit.point, cameraid);
     }
   }
 
-  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0 &&
-      !deletionmode) {
+  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0 && deletionmode) {
     Vector2 mouse_pos = GetMousePosition();
     Ray ray = GetScreenToWorldRay(mouse_pos, camera);
 
@@ -117,7 +105,8 @@ void ProcessInput() {
     DeletePick(min_index);
   }
 
-  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0 && deletionmode) {
+  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0 &&
+      !deletionmode) {
     Vector2 mouse_pos = GetMousePosition();
     Ray ray = GetScreenToWorldRay(mouse_pos, camera);
 
@@ -164,7 +153,8 @@ void ProcessInput() {
 
 void DrawPicks() {
   for (int i = 0; i < npicks; i++) {
-    DrawSphere(picks[i], 1.f, RED);
+    Color col = (!camdirty && picks2cam[i] == cameraid) ? RED : BLUE;
+    DrawSphere(picks[i], 1.f, col);
   }
 }
 
@@ -179,8 +169,9 @@ void DrawUI(void) {
   DrawText(TextFormat("STL ID: %d", selected_stl_id), 10, 185, 16, BLACK);
   DrawText(camdirty ? "CAM ID: ..." : TextFormat("CAM ID: %d", cameraid), 10,
            205, 16, BLACK);
-  DrawText(deletionmode ? "Middle click deletes all"
-                        : "Middle click deletes only for CAM ID",
+  DrawText(deletionmode
+               ? "Middle click deletes all"
+               : "Middle click deletes only for current CAM ID (red points)",
            10, 225, 16, BLACK);
   DrawText("/ (KEY_SLASH): toggle middle click deletion mode", 10, 245, 16,
            DARKGRAY);
