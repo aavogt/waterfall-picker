@@ -15,7 +15,6 @@
 // Global variables
 static sqlite3 *db = NULL;
 static Camera3D camera = {0};
-static Matrix cameramatrix = {0};
 static int cameraid = 1;
 static int selected_stl_id = 0;
 static Model stl_model = {0};

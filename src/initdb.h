@@ -154,7 +154,6 @@ bool LoadCameraID(int cam_id) {
         .fovy = (float)sqlite3_column_double(stmt, 9), // fovy
         .projection = sqlite3_column_int(stmt, 10)     // proj
     };
-    cameramatrix = GetCameraMatrix(camera);
 
     sqlite3_finalize(stmt);
     return true;

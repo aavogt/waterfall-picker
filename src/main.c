@@ -63,7 +63,6 @@ float RayVector3Distance(Ray r, Vector3 x) {
 void ProcessInput() {
   if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
     UpdateCamera(&camera, CAMERA_THIRD_PERSON);
-    cameramatrix = GetCameraMatrix(camera);
     camdirty = true;
   }
 
