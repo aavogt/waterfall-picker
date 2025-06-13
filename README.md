@@ -10,6 +10,11 @@ initial sqlite database, and call waterfall-picker. With the mouse, the user
 picks points on the model. If the model changes, waterfall-picker will be able
 to replay the user's selection on the changed model.
 
+## Build
+
+    cmake .
+    make
+    ./waterfall-picker
 
 ## TODO
 
