@@ -268,7 +268,7 @@ bool DeletePick(int i) {
   int delid = picksid[i];
   picks[i] = picks[npicks - 1];
   picks2cam[i] = picks2cam[npicks - 1];
-  picksid[i] = picks2cam[npicks - 1];
+  picksid[i] = picksid[npicks - 1];
   picks2[i] = picks2[--npicks];
 
   // delete it from the database
@@ -283,7 +283,7 @@ bool DeletePick(int i) {
   }
 
   // Bind the rowid value to the SQL statement
-  sqlite3_bind_int(stmt, 1, i);
+  sqlite3_bind_int(stmt, 1, delid);
 
   // Execute the SQL statement
   rc = sqlite3_step(stmt);
@@ -388,5 +388,56 @@ bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
   sqlite3_finalize(stmt);
 
   printf("Camera inserted successfully for stl_id = %d.\n", stl_id);
+  return true;
+}
+
+bool RemoveCameraFromDB(int cam_id) {
+  // Check the number of rows in the cams table
+  const char *count_sql = "SELECT COUNT(*) FROM cams;";
+  sqlite3_stmt *count_stmt;
+
+  int rc = sqlite3_prepare_v2(db, count_sql, -1, &count_stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  rc = sqlite3_step(count_stmt);
+  if (rc != SQLITE_ROW) {
+    printf("Failed to count rows: %s\n", sqlite3_errmsg(db));
+    sqlite3_finalize(count_stmt);
+    return false;
+  }
+
+  int row_count = sqlite3_column_int(count_stmt, 0);
+  sqlite3_finalize(count_stmt);
+
+  if (row_count <= 1) {
+    printf("Cannot delete the last row in the database.\n");
+    return false;
+  }
+
+  // Proceed with deletion if there is more than one row
+  const char *sql = "DELETE FROM cams WHERE rowid = ?;";
+  sqlite3_stmt *stmt;
+
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    printf("SQL error: %s\n", sqlite3_errmsg(db));
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, cam_id);
+
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    printf("Failed to delete camera: %s\n", sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return false;
+  }
+
+  sqlite3_finalize(stmt);
+
+  printf("Camera with ID %d deleted successfully.\n", cam_id);
   return true;
 }

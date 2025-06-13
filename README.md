@@ -18,6 +18,9 @@ to replay the user's selection on the changed model.
 
 ## TODO
 
+- [ ] when deleting the last picks also delete cameras?
+- [ ] when deleting only include points associated with the given cam?
+- [ ] keybinding to cycle between stls?
 - [ ] mouse binding to rotate the light?
 - [ ] checkerboard.png doesn't seem to be be attached though it is somehow necessary?
 - [ ] argument parsing to replay? to review? without opening a window?

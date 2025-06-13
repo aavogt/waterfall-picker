@@ -85,14 +85,22 @@ void ProcessInput() {
         printf("dirty cam, camid %d\n", cam_id);
         camdirty = false;
       } else {
-        cam_id = picks2cam[npicks - 1];
+        // this can be out of bounds, if it would be then
+        // camid should be cameraid?
+        if (npicks < 1) {
+          cam_id = cameraid;
+
+        } else {
+          cam_id = picks2cam[npicks - 1];
+        }
       }
       printf("clean cam, camid %d\n", cam_id);
       InsertPick(mouse_pos, hit.point, cam_id);
     }
   }
 
-  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0) {
+  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0 &&
+      !deletionmode) {
     Vector2 mouse_pos = GetMousePosition();
     Ray ray = GetScreenToWorldRay(mouse_pos, camera);
 
@@ -110,11 +118,48 @@ void ProcessInput() {
     DeletePick(min_index);
   }
 
+  if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && npicks > 0 && deletionmode) {
+    Vector2 mouse_pos = GetMousePosition();
+    Ray ray = GetScreenToWorldRay(mouse_pos, camera);
+
+    // index with the minimum distance
+    // that also has the same camera id
+    int min_index = -1;
+    for (int i = 0; i < npicks; i++) {
+      if (picks2cam[i] == cameraid) {
+        min_index = i;
+        break;
+      }
+    }
+
+    if (min_index == -1) {
+      // nobody uses the camera so delete it
+      RemoveCameraFromDB(cameraid);
+      LoadCameraIDWithDirection(true);
+    } else {
+      float min_distance = RayVector3Distance(ray, picks[min_index]);
+      for (int i = min_index + 1; i < npicks; i++) {
+        if (picks2cam[i] != cameraid)
+          continue;
+        float distance = RayVector3Distance(ray, picks[i]);
+        if (distance < min_distance) {
+          min_distance = distance;
+          min_index = i;
+        }
+      }
+      DeletePick(min_index);
+    }
+  }
+
   if (IsKeyPressed(KEY_PERIOD)) {
     LoadCameraIDWithDirection(true);
   }
   if (IsKeyPressed(KEY_COMMA)) {
     LoadCameraIDWithDirection(false);
+  }
+
+  if (IsKeyPressed(KEY_SLASH)) {
+    deletionmode = (1 + deletionmode) % 2;
   }
 }
 
@@ -135,4 +180,9 @@ void DrawUI(void) {
   DrawText(TextFormat("STL ID: %d", selected_stl_id), 10, 185, 16, BLACK);
   DrawText(camdirty ? "CAM ID: ..." : TextFormat("CAM ID: %d", cameraid), 10,
            205, 16, BLACK);
+  DrawText(deletionmode ? "Middle click deletes all"
+                        : "Middle click deletes only for CAM ID",
+           10, 225, 16, BLACK);
+  DrawText("/ (KEY_SLASH): toggle middle click deletion mode", 10, 245, 16,
+           DARKGRAY);
 }
