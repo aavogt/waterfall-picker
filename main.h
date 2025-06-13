@@ -26,7 +26,7 @@ static Vector2 picks2[MAX_PTS];
 static Vector3 picks[MAX_PTS];
 static int npicks = 0;
 static Shader shader;
-const char *db_path = "/tmp/db.stl"; // Default database path
+const char *db_path = "stl.sqlite3"; // Default database path
 
 bool InitDatabase(const char *db_path);
 bool LoadSTLFromDB(int stl_id);
