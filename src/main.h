@@ -35,8 +35,6 @@ bool InitDatabase(const char *db_path);
 bool LoadSTLFromDB(int stl_id);
 bool LoadCameraFromDB(int stl_id);
 bool LoadPicksFromDB(int stl_id);
-bool SavePolylineToScreenSpace(int drag_id);
-bool SavePolylineTo3D(int drag_id);
 void ProcessInput();
 void DrawPicks();
 void DrawUI(void);
