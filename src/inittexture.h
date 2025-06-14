@@ -1,11 +1,12 @@
 #include "checkerboard.h"
 #include "main.h"
 
-Image checkerboard_img;
-Texture2D checkerboard;
+static Image checkerboard_img;
+static Texture2D checkerboard;
 static Material materials;
+static MaterialMap materialmap;
 
-bool InitializeTexture() {
+inline bool InitializeTexture() {
   // Load texture and assign it to the model
   // convert -size 800x800 pattern:checkerboard -colors 2 checkerboard.png
   // xxd -i checkerboard.png > checkerboard.h
@@ -16,16 +17,14 @@ bool InitializeTexture() {
     printf("Failed to load texture\n");
     return 1;
   }
-  materials =
-      (Material){.shader = shader,
-                 .params = {1.f, 1.f, 1.f, 1.f},
-                 .maps = &(MaterialMap){
-                     .texture = checkerboard, .color = GRAY, .value = 50.f}};
+  materialmap = {.texture = checkerboard, .color = GRAY, .value = 50.f};
+  materials = (Material){
+      .shader = shader, .maps = &materialmap, .params = {1.f, 1.f, 1.f, 1.f}};
   stl_model.materials = &materials;
   return 0;
 }
 
-void UninitializeTexture() {
+inline void UninitializeTexture() {
   stl_model.materials = NULL;
   UnloadImage(checkerboard_img);
   UnloadTexture(checkerboard);

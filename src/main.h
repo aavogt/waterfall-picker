@@ -39,5 +39,6 @@ void ProcessInput();
 void DrawPicks();
 void DrawUI(void);
 bool DeletePick(int i);
+bool InitializeTexture();
 #define MAIN_ONCE
 #endif

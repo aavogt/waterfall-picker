@@ -1,6 +1,6 @@
 #include "main.h"
 
-bool InitDatabase(const char *db_path) {
+inline bool InitDatabase(const char *db_path) {
   int rc = sqlite3_open(db_path, &db);
   if (rc != SQLITE_OK) {
     printf("Cannot open database: %s\n", sqlite3_errmsg(db));
@@ -9,7 +9,7 @@ bool InitDatabase(const char *db_path) {
   return true;
 }
 
-bool LoadSTLFromDB(int stl_id) {
+inline bool LoadSTLFromDB(int stl_id) {
   sqlite3_stmt *stmt;
   const char *sql = "SELECT data FROM stls WHERE rowid = ?;";
 
@@ -73,7 +73,7 @@ bool LoadSTLFromDB(int stl_id) {
   return false;
 }
 
-bool LoadPicksFromDB(int stl_id) {
+inline bool LoadPicksFromDB(int stl_id) {
   sqlite3_stmt *stmt;
   const char *sql = "SELECT picks.cam, picks.mx, picks.my, picks.x, picks.y, "
                     "picks.z, picks.rowid "
@@ -117,7 +117,7 @@ bool LoadPicksFromDB(int stl_id) {
   return true;
 }
 
-bool LoadCameraID(int cam_id) {
+inline bool LoadCameraID(int cam_id) {
   sqlite3_stmt *stmt;
   const char *sql = "SELECT posx, posy, posz, tx, ty, tz, upx, upy, upz, fovy, "
                     "proj, attachment "
@@ -166,7 +166,7 @@ bool LoadCameraID(int cam_id) {
   }
 }
 
-bool LoadCameraIDWithDirection(bool asc) {
+inline bool LoadCameraIDWithDirection(bool asc) {
   sqlite3_stmt *stmt;
   const char *sql =
       asc ? "SELECT rowid FROM cams WHERE rowid > ? ORDER BY rowid ASC LIMIT 1;"
@@ -208,7 +208,7 @@ bool LoadCameraIDWithDirection(bool asc) {
   return false;
 }
 
-bool LoadCameraFromDB(int stl_id) {
+inline bool LoadCameraFromDB(int stl_id) {
   sqlite3_stmt *stmt;
   const char *sql = "SELECT rowid FROM cams WHERE stl = ?;";
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
@@ -230,7 +230,7 @@ bool LoadCameraFromDB(int stl_id) {
   return false;
 }
 
-bool InitializeLoadDB() {
+inline bool InitializeLoadDB() {
   // Initialize database
   if (!InitDatabase(db_path)) {
     printf("Failed to initialize database\n");
@@ -264,7 +264,7 @@ bool InitializeLoadDB() {
   return 0;
 }
 
-bool DeletePick(int i) {
+inline bool DeletePick(int i) {
   // delete it from the arrays
   int delid = picksid[i];
   picks[i] = picks[npicks - 1];
@@ -299,7 +299,7 @@ bool DeletePick(int i) {
   return true;
 }
 
-bool InsertPick(Vector2 mouse_pos, Vector3 world_pos, int cam_id) {
+inline bool InsertPick(Vector2 mouse_pos, Vector3 world_pos, int cam_id) {
   // Ensure we don't exceed the maximum number of picks
   if (npicks >= MAX_PTS) {
     printf("Error: Exceeded maximum number of picks (%d).\n", MAX_PTS);
@@ -349,7 +349,7 @@ bool InsertPick(Vector2 mouse_pos, Vector3 world_pos, int cam_id) {
   return true;
 }
 
-bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
+inline bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
   // Prepare the SQL statement for insertion
   const char *sql = "INSERT INTO cams (posx, posy, posz, tx, ty, tz, upx, upy, "
                     "upz, fovy, proj, stl, attachment) "
@@ -393,7 +393,7 @@ bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
   return true;
 }
 
-bool RemoveCameraFromDB(int cam_id) {
+inline bool RemoveCameraFromDB(int cam_id) {
   // Check the number of rows in the cams table
   const char *count_sql = "SELECT COUNT(*) FROM cams;";
   sqlite3_stmt *count_stmt;

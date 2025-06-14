@@ -1,12 +1,12 @@
 #include "main.h"
 
-void SetLightPosition(Vector3 lightPosition) {
+inline void SetLightPosition(Vector3 lightPosition) {
   int shaderLightPositionLoc = GetShaderLocation(shader, "lightPosition");
   SetShaderValue(shader, shaderLightPositionLoc, &lightPosition,
                  SHADER_UNIFORM_VEC3);
 }
 
-bool InitializeShader() {
+inline bool InitializeShader() {
   shader = LoadShader("src/vs.glsl", "src/fs.glsl");
   if (shader.id == 0) {
     printf("Failed to load shader\n");
