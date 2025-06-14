@@ -119,9 +119,9 @@ bool LoadPicksFromDB(int stl_id) {
 
 bool LoadCameraID(int cam_id) {
   sqlite3_stmt *stmt;
-  const char *sql =
-      "SELECT posx, posy, posz, tx, ty, tz, upx, upy, upz, fovy, proj "
-      "FROM cams WHERE rowid = ?;";
+  const char *sql = "SELECT posx, posy, posz, tx, ty, tz, upx, upy, upz, fovy, "
+                    "proj, attachment "
+                    "FROM cams WHERE rowid = ?;";
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     printf("SQL error: %s\n", sqlite3_errmsg(db));
@@ -154,6 +154,7 @@ bool LoadCameraID(int cam_id) {
         .fovy = (float)sqlite3_column_double(stmt, 9), // fovy
         .projection = sqlite3_column_int(stmt, 10)     // proj
     };
+    cameraattachment = sqlite3_column_int(stmt, 11);
     camdirty = false;
 
     sqlite3_finalize(stmt);
@@ -351,8 +352,8 @@ bool InsertPick(Vector2 mouse_pos, Vector3 world_pos, int cam_id) {
 bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
   // Prepare the SQL statement for insertion
   const char *sql = "INSERT INTO cams (posx, posy, posz, tx, ty, tz, upx, upy, "
-                    "upz, fovy, proj, stl) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+                    "upz, fovy, proj, stl, attachment) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -373,6 +374,7 @@ bool InsertCam(Camera3D camera, int stl_id, int *cam_id) {
   sqlite3_bind_double(stmt, 10, camera.fovy);      // fovy
   sqlite3_bind_int(stmt, 11, camera.projection);   // proj
   sqlite3_bind_int(stmt, 12, stl_id);              // stl
+  sqlite3_bind_int(stmt, 13, cameraattachment);    // attachment
 
   // Execute the SQL statement
   rc = sqlite3_step(stmt);
