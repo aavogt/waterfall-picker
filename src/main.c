@@ -48,7 +48,11 @@ int main(int argc, char *argv[]) {
 
   UnloadShader(shader);
   UninitializeTexture();
-  // UnloadModel(stl_model);
+  for (int i = 0; i < stl_model.meshCount; i++) {
+    free(stl_model.meshes[i].vertices);
+    free(stl_model.meshes[i].normals);
+  }
+  RL_FREE(stl_model.meshes);
   CloseWindow();
 
   return 0;
