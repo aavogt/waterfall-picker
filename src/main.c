@@ -160,19 +160,26 @@ void DrawPicks() {
 
 void DrawUI(void) {
   DrawText("Controls:", 10, 10, 20, BLACK);
-  DrawText(", (KEY_COMMA): previous camera", 10, 40, 16, DARKGRAY);
-  DrawText(". (KEY_PERIOD): next camera", 10, 60, 16, DARKGRAY);
-  DrawText("Left Click: Add point", 10, 75, 16, DARKGRAY);
-  DrawText("Middle Click: Delete closest point", 10, 75 + 20, 16, DARKGRAY);
-  DrawText("Right drag: Rotate camera", 10, 75 + 40, 16, DARKGRAY);
-  DrawText(TextFormat("npicks: %d", npicks), 10, 165, 16, BLACK);
-  DrawText(TextFormat("STL ID: %d", selected_stl_id), 10, 185, 16, BLACK);
+  DrawText(", (KEY_COMMA): previous camera", 10, 40, 16,
+           IsKeyDown(KEY_COMMA) ? RED : DARKGRAY);
+  DrawText(". (KEY_PERIOD): next camera", 10, 60, 16,
+           IsKeyDown(KEY_PERIOD) ? RED : DARKGRAY);
+  DrawText("/ (KEY_SLASH): toggle middle click deletion mode", 10, 80, 16,
+           IsKeyDown(KEY_SLASH) ? RED : DARKGRAY);
+  DrawText("Left Click: Add point", 10, 100, 16,
+           IsMouseButtonDown(MOUSE_LEFT_BUTTON) ? RED : DARKGRAY);
+  DrawText("Middle Click: Delete closest point", 10, 120, 16,
+           IsMouseButtonDown(MOUSE_MIDDLE_BUTTON) ? RED : DARKGRAY);
+  DrawText("Right drag: Rotate camera", 10, 140, 16,
+           IsMouseButtonDown(MOUSE_RIGHT_BUTTON) ? RED : DARKGRAY);
+  DrawText(TextFormat("npicks: %d", npicks), 10, GetScreenHeight() - 100, 16,
+           BLACK);
+  DrawText(TextFormat("STL ID: %d", selected_stl_id), 10,
+           GetScreenHeight() - 80, 16, BLACK);
   DrawText(camdirty ? "CAM ID: ..." : TextFormat("CAM ID: %d", cameraid), 10,
-           205, 16, BLACK);
+           GetScreenHeight() - 60, 16, BLACK);
   DrawText(deletionmode
                ? "Middle click deletes all"
                : "Middle click deletes only for current CAM ID (red points)",
-           10, 225, 16, BLACK);
-  DrawText("/ (KEY_SLASH): toggle middle click deletion mode", 10, 245, 16,
-           DARKGRAY);
+           10, GetScreenHeight() - 40, 16, BLACK);
 }
