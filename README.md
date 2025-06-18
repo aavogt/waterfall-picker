@@ -1,14 +1,18 @@
 # waterfall-picker
 
-This is a c raylib program for the following sqlite3 database schema:
+This is a c (actually c++ on account of operator overloads) raylib program for the following sqlite3 database schema:
 
 ![schema](schema.svg)
 
+
 [waterfall cad](https://github.com/joe-warren/opencascade-hs#readme) has no
-feature to pick points on a model. A separate quasiquoter will generate the
+feature to graphically pick points on a model. A separate quasiquoter will generate the
 initial sqlite database, and call this waterfall-picker program. With the mouse, the user
-picks points on the model. If the model changes, waterfall-picker will be able
-to replay the user's selection on the changed model.
+picks points on the model which are stored together with camera position and screen coordinates.
+If the model changes, waterfall-picker will be able to replay the user's selection on the changed model,
+which for small changes in a model viewed from the right point of view, will still give the correct points.
+
+A [video](picker.webm) shows current capabilities.
 
 ## Build
 
