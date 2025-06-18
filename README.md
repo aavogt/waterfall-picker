@@ -28,4 +28,3 @@ A [video](picker.webm) shows current capabilities.
 - [ ] mouse binding to rotate the light?
 - [ ] checkerboard.png needs `.texcoords`
 - [ ] argument parsing to replay? to review? without opening a window?
-- [ ] DrawUI() y spacing off
