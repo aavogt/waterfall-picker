@@ -1,4 +1,5 @@
 #include "main.h"
+#include "geometry.h"
 #include "initdb.h"
 #include "initshader.h"
 #include "inittexture.h"
@@ -58,94 +59,6 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-// Plucker coordinate
-float RayVector3Distance(Ray r, Vector3 x) {
-  return Vector3Length(Vector3CrossProduct(r.direction, x - r.position));
-}
-
-// z component of the cross product, + if a-b-c makes a left turn
-// https://en.wikipedia.org/wiki/Graham_scan
-float Turn(Vector2 a, Vector2 b, Vector2 c) {
-  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-}
-
-// InsertPlane(eye, plane, x) tries to moves the plane towards eye.
-void AdvancePlane(Vector3 eye, Vector3 plane[3], Vector3 x) {
-  Vector3 n = Vector3CrossProduct(plane[2] - plane[0], plane[1] - plane[0]);
-  n = Vector3Normalize(n);
-  if (Vector3DotProduct(eye - plane[0], n) < 0)
-    n = Vector3Scale(n, -1);
-
-  float xd = Vector3DotProduct(x - plane[0], n);
-  if (xd <= 0)
-    return;
-  // x is on the same side as n
-
-  // projecti x into the plane
-  Vector3 xp = x - n * xd;
-
-  // replace the point closest
-  float d_min = INFINITY;
-  int i_min = 0;
-  for (int i = 0; i < 3; i++) {
-    float d = Vector3DistanceSqr(plane[i], xp);
-    if (d < d_min) {
-      d_min = d;
-      i_min = i;
-    }
-    plane[i_min] = x;
-  }
-}
-
-// AdvanceSeg(eye, ab, x) tries to move the line segment towards eye.
-void AdvanceSeg(Vector3 eye, Vector3 ab[2], Vector3 x) {
-  // project x onto the plane formed by eye,a,b
-  Vector3 n = Vector3CrossProduct(ab[1] - eye, ab[0] - eye);
-
-  Vector3 xp0 = Vector3Reject(x - ab[0], n);
-
-  // UV corrdinates of xp in the plane
-  // U is the a-b direction
-  // V is towards eye
-  // can likely be done in fewer operations
-  float u = Vector3Length(Vector3Project(xp0, eye - ab[0]));
-  float v = Vector3Length(Vector3Project(xp0, ab[1] - ab[0]));
-
-  float dab = Vector3Distance(ab[1], ab[0]);
-
-  if (v < 0)
-    return;
-
-  if (v < dab / 2) {
-    ab[0] = x;
-  } else {
-    ab[1] = x;
-  }
-}
-
-RayCollision GetRayCollisionPlane(Ray ray, Vector3 *p, int np) {
-  if (np == 3) {
-    Vector3 n = Vector3CrossProduct(p[2] - p[0], p[1] - p[0]);
-
-    float den = Vector3DotProduct(n, ray.direction);
-    float t = -(Vector3DotProduct(ray.direction, p[0]) +
-                Vector3DotProduct(n, ray.position) / den);
-
-    return (RayCollision){.hit = den != 0,
-                          .distance = t,
-                          .point = ray.position + ray.direction * t};
-  } else {
-    // return the point on the line
-    Vector3 n = Vector3CrossProduct(p[0] - ray.position, p[1] - ray.position);
-
-    Vector3 d = Vector3Reject(ray.direction, n);
-    // d*t + ray.position = s( p[1]-p[0]) + p[0]
-    // 3 equations, 2 unknowns, but they should be redundant
-
-    return (RayCollision){};
-  }
-}
-
 // interpret all points in the given camera as defining a (planar) polygonal
 // pyramid cast from the camera, whose base touches but
 // does not penetrate into stl_model. The polygon's normal (ie. of the
@@ -155,8 +68,6 @@ RayCollision GetRayCollisionPlane(Ray ray, Vector3 *p, int np) {
 //
 // consider the stl_model as a sphere, then some traversal orders will
 // be different? In all cases the polygon will be tangent to the sphere?
-//
-// Twqo
 void AttachPolygon1(int nx, int ny) {
   // bounding box
   Vector2 upperLeft = {INFINITY, INFINITY}, lowerRight = {-INFINITY, -INFINITY};
